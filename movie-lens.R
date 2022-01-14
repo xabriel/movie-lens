@@ -48,3 +48,32 @@ removed <- anti_join(temp, validation)
 edx <- rbind(edx, removed)
 
 rm(dl, ratings, movies, test_index, temp, movielens, removed)
+
+##########################################################
+# Start of code by Xabriel J Collazo Mojica
+##########################################################
+
+# First, we divide the dataset into training and test sets
+set.seed(123)
+test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.2, list = FALSE)
+train_set <- edx[-test_index,]
+test_set <- edx[test_index,]
+
+# we'd like the users and movies in the test set to be mutually exclusive
+# from the movies and users of the train set
+test_set <- test_set %>% 
+  semi_join(train_set, by = "movieId") %>%
+  semi_join(train_set, by = "userId")
+
+# To test our progress, we define a function to compute the
+# root mean squared error:
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+
+set.seed(321)
+predicted <- sample(seq(1,5,0.5), size = nrow(test_set), replace = TRUE)
+
+RMSE(test_set$rating, predicted)
+RMSE(test_set$rating, 4)
