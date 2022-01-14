@@ -66,14 +66,30 @@ test_set <- test_set %>%
   semi_join(train_set, by = "userId")
 
 # To test our progress, we define a function to compute the
-# root mean squared error:
+# root-mean-square error:
 RMSE <- function(true_ratings, predicted_ratings){
   sqrt(mean((true_ratings - predicted_ratings)^2))
 }
 
+# as a base model, let's calculate the average rating mu
+mu <- mean(edx$rating)
 
-set.seed(321)
-predicted <- sample(seq(1,5,0.5), size = nrow(test_set), replace = TRUE)
+# we can now compute a simple model that just guesses the average rating.
+# In the literature, this is called a 'baseline rating'.
+model_baseline <- mu
+rmse_baseline <- RMSE(test_set$rating, model_baseline)
+print(paste("RMSE of baseline model: ", rmse_baseline))
 
-RMSE(test_set$rating, predicted)
-RMSE(test_set$rating, 4)
+# let's add a movie effect; the rationale being that some movies are simply
+# rated higher than other movies.
+movie_effect <- edx %>%
+  group_by(movieId) %>%
+  summarize(b_m = mean(rating - mu))
+
+# let's rerun the RMSE to see where we at:
+movie_effect_on_test_set <- test_set %>% inner_join(movie_effect, by = "movieId") %>% pull(b_m)
+model_movie_effect <- mu + movie_effect_on_test_set
+rmse_movie_effect <- RMSE(test_set$rating, model_movie_effect)
+print(paste("RMSE of baseline + movie effect: ", rmse_movie_effect))
+
+# now, lets add a user effect; 

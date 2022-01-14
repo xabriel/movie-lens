@@ -27,7 +27,7 @@ where:
 
 $\mu$ is the average rating of all movies in the dataset
 
-$b_1 + b_2 + ... + b_n$ models different "bias" that we want to account for
+$b_1 + b_2 + ... + b_n$ models different "bias" (or "effects") that we want to account for
 
 $\varepsilon_{u,i}$ is the error for each movie and user pair when comparing to the actual ratings
 
