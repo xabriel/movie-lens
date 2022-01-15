@@ -92,4 +92,14 @@ model_movie_effect <- mu + movie_effect_on_test_set
 rmse_movie_effect <- RMSE(test_set$rating, model_movie_effect)
 print(paste("RMSE of baseline + movie effect: ", rmse_movie_effect))
 
-# now, lets add a user effect; 
+
+# let's add a user effect; some users are harsh critics, some always give 5's.
+user_effect <- edx %>%
+  inner_join(movie_effect, by = "movieId") %>%
+  group_by(userId) %>%
+  summarise(b_u = mean(rating - mu - b_m))
+# rmse
+user_effect_on_test_set <- test_set %>% inner_join(user_effect, by = "userId") %>% pull(b_u)
+model_movie_and_user_effect <- mu + movie_effect_on_test_set + user_effect_on_test_set
+rmse_movie_and_user_effect <- RMSE(test_set$rating, model_movie_and_user_effect)
+print(paste("RMSE of baseline + movie and user effect: ", rmse_movie_and_user_effect))
