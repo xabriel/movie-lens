@@ -35,6 +35,8 @@ $Y_{u,i}$ is the predicted ratings for all movie and user pairs.
 
 ## Methodology and Implementation
 
+We apply temporal movie effects by implementing suggestions from the work of Koren: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.379.1951&rep=rep1&type=pdf
+
 (a **methods/analysis** section that explains the process and techniques used, including data cleaning, data exploration and visualization, insights gained, and your modeling approach)
 
 ## Results
