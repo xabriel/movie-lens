@@ -53,13 +53,13 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 # Start of code by Xabriel J Collazo Mojica
 ##########################################################
 
-# First, we divide the dataset into training and test sets
+# First, divide the dataset into training and test sets
 set.seed(1, sample.kind="Rounding")
 test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.2, list = FALSE)
 train_set <- edx[-test_index,]
 test_set <- edx[test_index,]
 
-# Make sure userId and movieId in train_set set are also in test_set set
+# Make sure userId and movieId in train_set set are also in test_set
 test_set <- test_set %>% 
   semi_join(train_set, by = "movieId") %>%
   semi_join(train_set, by = "userId")
@@ -166,8 +166,6 @@ rmse_movie_and_user_effect <- RMSE(test_set$rating, model_movie_and_user_effect)
 print(paste("RMSE of baseline + temporal movie effect and user effect: ", rmse_movie_and_user_effect))
 
 # after fixing to use just train set, we now get .8625 :(
-
-# 0.83 !!!!!
 
 # let's now regularize the effects since some users do few ratings
 # and some movies have few ratings
@@ -278,4 +276,3 @@ rmse_movie_and_user_effect <- RMSE(validation$rating, model_movie_and_user_effec
 print(paste("RMSE of baseline + temporal movie effect and user effect + regularization: ", rmse_movie_and_user_effect))
 
 # "RMSE of baseline + temporal movie effect and user effect + regularization:  0.861813658382263"
-# 

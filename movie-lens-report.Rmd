@@ -13,29 +13,59 @@ knitr::opts_chunk$set(echo = TRUE)
 
 (an **introduction/overview/executive summary** section that describes the dataset and summarizes the goal of the project and key steps that were performed)
 
-Recommendation systems allow users to get recommendations by leveraging ratings made by the same and other users. One common application is the recommendation of movies. Users input their ratings of movies, typically using a 5-star scale, and based on this input, and other users ratings, the system predicts how the current user would rate the set of movies.
+Collaborative filtering systems allow users to leverage work made by other users. One common application is the recommendation of movies. Users input ratings of movies they have seen, typically using a 5-star scale, and the system then predicts how the user would rate other movies based on ratings previously made by other users.
 
 The GroupLens Research Group at the University of Minnesota publishes multiple versions of 'MovieLens', a dataset of movie ratings, so that other interested parties can analyze and learn from it. In this work, we utilize a [version of their dataset](http://files.grouplens.org/datasets/movielens/ml-10m-README.html) that includes 10 million ratings selected randomly from their complete dataset.
 
-These types of systems happen to be a great learning tool as we can apply a variety of machine learning techniques to try and come up with good recommendations. We model the problem as a function that accounts for multiple effects given by different features of the dataset. The objective is to minimize the root mean square error when comparing the predicted ratings to the actual ratings. The model looks like so:
+The dataset is composed of two files. The first file, `movies.dat`, contains information about the movies themselves. Its format is as follows:
+
+    MovieID::Title::Genres
+
+    Examples:
+    1::Toy Story (1995)::Adventure|Animation|Children|Comedy|Fantasy
+    2::Jumanji (1995)::Adventure|Children|Fantasy
+    3::Grumpier Old Men (1995)::Comedy|Romance
+
+Notice that this file is delimited by a double colon (`::`), and it includes a movie identifier, the movie name, and a set of genres, themselves separated by pipes (`|`). The second file, `ratings.dat`, contains information about the ratings. Its format is as follows:
+
+    UserID::MovieID::Rating::Timestamp
+
+    Examples:
+    1::122::5::838985046
+    1::185::5::838983525
+    1::231::5::838983392
+
+This file is delimited in the same format, and includes a user identifier, a movie identifier that we can match with the previous file, an integer rating from 1 to 5, and timestamps that represent seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970.
+
+We use common data import and wrangling to convert these two files into a single object that is more amenable to our purposes. We also divide the data randomly into three sets: 10% is a validation set, which we only utilize for final evaluation of the solution. 72% is a train set, utilized to build our model, and finally 18% of the data is used as a test set to continually asses our progress.
+
+We model the problem as a the sum of multiple effects given by different features of the dataset. The model looks like so:
 
 $$
-Y_{u,i} = \mu + b_1 + b_2 + ... + b_n + \varepsilon_{u,i}
+Y_{u,i} = \mu + b_i(t) + b_u + \varepsilon_{u,i}
 $$
 
 where:
 
-$\mu$ is the average rating of all movies in the dataset
+$\mu$: the average rating of all movies in the dataset
 
-$b_1 + b_2 + ... + b_n$ models different "bias" (or "effects") that we want to account for
+$b_i(t)$: Some items will invariably be rated higher (or lower) than $\mu$, thus this term accounts for the "bias" (or "effects") allocated to the rated item (in our case movies). We notice that the item effect also have a time effect, thus we account for this as well.
+
+$b_u$: Some users will tend to rate higher, while other will tend to rate lower, thus this term accounts for the "bias" (or "effects") allocated to the user
 
 $\varepsilon_{u,i}$ is the error for each movie and user pair when comparing to the actual ratings
 
 $Y_{u,i}$ is the predicted ratings for all movie and user pairs.
 
+We try to learn each of the effects above my iteratively building the model, that is, first we learn $\mu$, then $b_i(t)$ based on $\mu$, then $b_u$ based on $\mu$ and $b_i(t)$. The goal of the project is to apply techniques to minimize the root mean square error (RMSE) of this model when comparing our predicted ratings $\hat Y_{u,i}$ to the actual ratings $Y_{u,i}$:
+
+$$
+RMSE=sqrt(mean(Y_{u.i} - \hat Y_{u,i})^2)
+$$
+
 ## Methodology and Implementation
 
-We apply temporal movie effects by implementing suggestions from the work of Koren: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.379.1951&rep=rep1&type=pdf
+We apply temporal movie effects by implementing suggestions from the work of Koren: <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.379.1951&rep=rep1&type=pdf>
 
 (a **methods/analysis** section that explains the process and techniques used, including data cleaning, data exploration and visualization, insights gained, and your modeling approach)
 
