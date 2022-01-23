@@ -24,44 +24,44 @@ library(tidyverse)
 library(caret)
 library(data.table)
 
-# MovieLens 10M dataset:
-# https://grouplens.org/datasets/movielens/10m/
-# http://files.grouplens.org/datasets/movielens/ml-10m.zip
-
-if(!exists("edx")) {
-  dl <- tempfile()
-  download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-  
-  if(!exists("ratings"))ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                   col.names = c("userId", "movieId", "rating", "timestamp"))
-  
-  movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
-  colnames(movies) <- c("movieId", "title", "genres")
-  
-  # if using R 4.0 or later:
-  movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
-                                             title = as.character(title),
-                                             genres = as.character(genres))
-  
-  movielens <- left_join(ratings, movies, by = "movieId")
-  
-  # Validation set will be 10% of MovieLens data
-  set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
-  test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
-  edx <- movielens[-test_index,]
-  temp <- movielens[test_index,]
-  
-  # Make sure userId and movieId in validation set are also in edx set
-  validation <- temp %>% 
-    semi_join(edx, by = "movieId") %>%
-    semi_join(edx, by = "userId")
-  
-  # Add rows removed from validation set back into edx set
-  removed <- anti_join(temp, validation)
-  edx <- rbind(edx, removed)
-  
-  rm(dl, ratings, movies, test_index, temp, movielens, removed)
-}
+# # MovieLens 10M dataset:
+# # https://grouplens.org/datasets/movielens/10m/
+# # http://files.grouplens.org/datasets/movielens/ml-10m.zip
+# 
+# if(!exists("edx")) {
+#   dl <- tempfile()
+#   download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+#   
+#   if(!exists("ratings"))ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+#                    col.names = c("userId", "movieId", "rating", "timestamp"))
+#   
+#   movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+#   colnames(movies) <- c("movieId", "title", "genres")
+#   
+#   # if using R 4.0 or later:
+#   movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+#                                              title = as.character(title),
+#                                              genres = as.character(genres))
+#   
+#   movielens <- left_join(ratings, movies, by = "movieId")
+#   
+#   # Validation set will be 10% of MovieLens data
+#   set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+#   test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+#   edx <- movielens[-test_index,]
+#   temp <- movielens[test_index,]
+#   
+#   # Make sure userId and movieId in validation set are also in edx set
+#   validation <- temp %>% 
+#     semi_join(edx, by = "movieId") %>%
+#     semi_join(edx, by = "userId")
+#   
+#   # Add rows removed from validation set back into edx set
+#   removed <- anti_join(temp, validation)
+#   edx <- rbind(edx, removed)
+#   
+#   rm(dl, ratings, movies, test_index, temp, movielens, removed)
+# }
 ```
 
 ## Introduction
@@ -126,20 +126,26 @@ $$
 
 ```{r}
 # First, divide the dataset into training and test sets
-set.seed(1, sample.kind="Rounding")
-test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.2, list = FALSE)
-train_set <- edx[-test_index,]
-test_set <- edx[test_index,]
+set.seed(1, sample.kind = "Rounding")
+test_index <-
+  createDataPartition(
+    y = edx$rating,
+    times = 1,
+    p = 0.2,
+    list = FALSE
+  )
+train_set <- edx[-test_index, ]
+test_set <- edx[test_index, ]
 
 # Make sure userId and movieId in train_set set are also in test_set
-test_set <- test_set %>% 
+test_set <- test_set %>%
   semi_join(train_set, by = "movieId") %>%
   semi_join(train_set, by = "userId")
 
 # To test our progress, we define a function to compute the
 # root-mean-square error:
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
+RMSE <- function(true_ratings, predicted_ratings) {
+  sqrt(mean((true_ratings - predicted_ratings) ^ 2))
 }
 ```
 
@@ -152,7 +158,7 @@ Let's take 5 random data points from movies with a significant amount of ratings
 ```{r}
 mu <- mean(train_set$rating)
 
-set.seed(1, sample.kind="Rounding")
+set.seed(1, sample.kind = "Rounding")
 sample <- train_set %>%
   group_by(movieId) %>%
   filter(n() > 500) %>%
@@ -165,10 +171,13 @@ sample %>%
   geom_point(aes(x = timestamp, y = rating, color = "actual")) +
   geom_point(aes(x = timestamp, y = predicted, color = "predicted")) +
   geom_hline(yintercept = mu) +
-  geom_linerange(
-    aes(x = timestamp, ymin = pmin(rating, mu),
-        ymax = pmax(rating, mu), color = "original error")) +
-  scale_colour_manual(values=c("green","blue","red"))
+  geom_linerange(aes(
+    x = timestamp,
+    ymin = pmin(rating, mu),
+    ymax = pmax(rating, mu),
+    color = "original error"
+  )) +
+  scale_colour_manual(values = c("green", "blue", "red"))
 ```
 
 For now, we can test our current model by calculating the RMSE:
@@ -215,10 +224,13 @@ sample %>%
   geom_point(aes(x = timestamp, y = rating, color = "actual")) +
   geom_point(aes(x = timestamp, y = predicted, color = "predicted")) +
   geom_hline(yintercept = mu) +
-  geom_linerange(
-    aes(x = timestamp, ymin = pmin(rating, mu),
-        ymax = pmax(rating, mu), color = "original error")) +
-  scale_colour_manual(values=c("green","blue","red"))
+  geom_linerange(aes(
+    x = timestamp,
+    ymin = pmin(rating, mu),
+    ymax = pmax(rating, mu),
+    color = "original error"
+  )) +
+  scale_colour_manual(values = c("green", "blue", "red"))
 ```
 
 Applying insight from the work of [Koren], we notice that there seems to also be a *temporal* item effect. That is, the mean rating of an item changes over time. Let's visualize this effect with the movies associated to our running example data points. In the code below we create temporal bins, that is, we divide the time into n bins and we put every rating into one of the bins. Later we calculate the mean rating of each movie for each bin.
@@ -233,7 +245,7 @@ bin_size <- (max_timestamp - min_timestamp) / num_bins
 
 train_set %>%
   filter(movieId %in% movieIds) %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   group_by(movieId, bin) %>%
   summarise(mean_rating = mean(rating), title = str_trunc(first(title), 18)) %>%
   ggplot(aes(x = bin, y = mean_rating, color = title)) +
@@ -252,44 +264,43 @@ $$
 The number of bins now becomes a tuning parameter, and we use our test data to figure it out:
 
 ```{r bins}
-bin_range <- append(c(1,2,3,4), seq(5, 25, 5))
+bin_range <- append(c(1, 2, 3, 4), seq(5, 25, 5))
 
 binned_movie_effect_rmses <- sapply(bin_range, function(num_bins) {
-
-  max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
+  max_timestamp <-
+    max(train_set$timestamp) + 86400 # one day margin to be safe
   min_timestamp <- min(train_set$timestamp) - 86400
   bin_size <- (max_timestamp - min_timestamp) / num_bins
-
+  
   # calculate the regular movie effect
   regular_movie_effect <- train_set %>%
     group_by(movieId) %>%
     summarize(b_i = mean(rating - mu))
-
+  
   # calculate the temporal movie effect
   binned_movie_effect <- train_set %>%
     left_join(regular_movie_effect, by = "movieId") %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     group_by(movieId, bin) %>%
     summarize(b_i_t = mean(rating - mu - b_i))
-
+  
   # apply the movie effect to test set
   movie_effect_on_test_set <-
     test_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     left_join(binned_movie_effect, by = c("movieId", "bin"))
-
+  
   model_movie_effect <-
     mu +
     movie_effect_on_test_set$b_i +
     coalesce(movie_effect_on_test_set$b_i_t, 0)
-
+  
   RMSE(test_set$rating, model_movie_effect)
 })
 
-data.frame(
-  num_bins = bin_range,
-  rmse = binned_movie_effect_rmses) %>%
+data.frame(num_bins = bin_range,
+           rmse = binned_movie_effect_rmses) %>%
   ggplot(aes(x = num_bins, y = rmse)) +
   geom_point()
 ```
@@ -298,11 +309,10 @@ Let's compute the RMSE so far:
 
 ```{r}
 best_bin_num <- bin_range[which.min(binned_movie_effect_rmses)]
-print(paste("RMSE of average + temporal movie effect: ", min(binned_movie_effect_rmses)))
-```
-
-```{r}
-
+print(paste(
+  "RMSE of average + temporal movie effect: ",
+  min(binned_movie_effect_rmses)
+))
 ```
 
 ### The user effect
@@ -325,7 +335,7 @@ Similar to other effects, to compute $b_u$ we group data by user, and subtract a
 
 ```{r}
 user_effect <- train_set %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   left_join(regular_movie_effect, by = "movieId") %>%
   left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
   group_by(userId) %>%
@@ -341,31 +351,37 @@ bin_size <- (max_timestamp - min_timestamp) / best_bin_num
 
 # calculate the regular movie effect
 regular_movie_effect <- train_set %>%
-    group_by(movieId) %>%
-    summarize(b_i = mean(rating - mu))
+  group_by(movieId) %>%
+  summarize(b_i = mean(rating - mu))
 
 # calculate the temporal movie effect
 binned_movie_effect <- train_set %>%
-    left_join(regular_movie_effect, by = "movieId") %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    group_by(movieId, bin) %>%
-    summarize(b_i_t = mean(rating - mu - b_i))
+  left_join(regular_movie_effect, by = "movieId") %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  group_by(movieId, bin) %>%
+  summarize(b_i_t = mean(rating - mu - b_i))
 
 user_effect_on_test_set <-
-    test_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    left_join(regular_movie_effect, by = "movieId") %>%
-    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
-    left_join(user_effect, by = "userId")
+  test_set %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  left_join(regular_movie_effect, by = "movieId") %>%
+  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  left_join(user_effect, by = "userId")
 
 model_movie_and_user_effect <-
-    mu +
-    user_effect_on_test_set$b_i +
-    coalesce(user_effect_on_test_set$b_i_t, 0) +
-    user_effect_on_test_set$b_u
+  mu +
+  user_effect_on_test_set$b_i +
+  coalesce(user_effect_on_test_set$b_i_t, 0) +
+  user_effect_on_test_set$b_u
 
-rmse_movie_and_user_effect <- RMSE(test_set$rating, model_movie_and_user_effect)
-print(paste("RMSE of baseline + temporal movie effect and user effect: ", rmse_movie_and_user_effect))
+rmse_movie_and_user_effect <-
+  RMSE(test_set$rating, model_movie_and_user_effect)
+print(
+  paste(
+    "RMSE of baseline + temporal movie effect and user effect: ",
+    rmse_movie_and_user_effect
+  )
+)
 ```
 
 Finally, we confirm visually with the running example:
@@ -374,7 +390,7 @@ Finally, we confirm visually with the running example:
 mu <- mean(train_set$rating)
 
 sample %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   left_join(regular_movie_effect, by = "movieId") %>%
   left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
   left_join(user_effect, by = "userId") %>%
@@ -383,10 +399,13 @@ sample %>%
   geom_point(aes(x = timestamp, y = rating, color = "actual")) +
   geom_point(aes(x = timestamp, y = predicted, color = "predicted")) +
   geom_hline(yintercept = mu) +
-  geom_linerange(
-    aes(x = timestamp, ymin = pmin(rating, mu),
-        ymax = pmax(rating, mu), color = "original error")) +
-  scale_colour_manual(values=c("green","blue","red"))
+  geom_linerange(aes(
+    x = timestamp,
+    ymin = pmin(rating, mu),
+    ymax = pmax(rating, mu),
+    color = "original error"
+  )) +
+  scale_colour_manual(values = c("green", "blue", "red"))
 ```
 
 ### Regularization
@@ -395,18 +414,18 @@ The final improvement we do in this work is the application of regularization. W
 
 ```{r}
 train_set %>%
-    group_by(movieId) %>%
-    summarise(n = n()) %>%
-    filter(n <= 10) %>%
-    select(n) %>%
-    table()
+  group_by(movieId) %>%
+  summarise(n = n()) %>%
+  filter(n <= 10) %>%
+  select(n) %>%
+  table()
 
 train_set %>%
-    group_by(userId) %>%
-    summarise(n = n()) %>%
-    filter(n <= 10) %>%
-    select(n) %>%
-    table()
+  group_by(userId) %>%
+  summarise(n = n()) %>%
+  filter(n <= 10) %>%
+  select(n) %>%
+  table()
 ```
 
 As per (dsbook): "Regularization permits us to penalize large estimates that are formed using small sample sizes... Specifically, instead of minimizing the least squares equation, we minimize an equation that adds a penalty: $$
@@ -420,57 +439,59 @@ The penalty $\lambda$ thus becomes a tuning parameter:
 lambdas <- seq(7, 9, 0.25)
 
 regularized_rmses <- sapply(lambdas, function(lambda) {
-
-  max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
+  max_timestamp <-
+    max(train_set$timestamp) + 86400 # one day margin to be safe
   min_timestamp <- min(train_set$timestamp) - 86400
   bin_size <- (max_timestamp - min_timestamp) / num_bins
-
-  # calculate the regular movie effect
+  
+    # calculate the regular movie effect
   regular_movie_effect <- train_set %>%
     group_by(movieId) %>%
     summarize(b_i = sum(rating - mu) / (n() + lambda))
-
-  # calculate the temporal movie effect
+  
+    # calculate the temporal movie effect
   binned_movie_effect <- train_set %>%
     left_join(regular_movie_effect, by = "movieId") %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     group_by(movieId, bin) %>%
     summarize(b_i_t = sum(rating - mu - b_i) / (n() + lambda))
-
-  # calculate the user effect
+  
+    # calculate the user effect
   user_effect <- train_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
     group_by(userId) %>%
     summarise(b_u = sum(rating - mu - b_i - coalesce(b_i_t, 0)) / (n() + lambda))
-
-  regulariztion_on_test_set <-
+  
+    regulariztion_on_test_set <-
     test_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
     left_join(user_effect, by = "userId")
-
-  model_regularized <-
+  
+      model_regularized <-
     mu +
     regulariztion_on_test_set$b_i +
     coalesce(regulariztion_on_test_set$b_i_t, 0) +
     regulariztion_on_test_set$b_u
-
-  RMSE(test_set$rating, model_regularized)
+  
+        RMSE(test_set$rating, model_regularized)
 })
 
-data.frame(
-  lambdas = lambdas,
-  rmse = regularized_rmses) %>%
+data.frame(lambdas = lambdas,
+           rmse = regularized_rmses) %>%
   ggplot(aes(x = lambdas, y = rmse)) +
   geom_point()
 ```
 
 ```{r}
 best_lambda <- lambdas[which.min(regularized_rmses)]
-print(paste("RMSE of baseline + temporal movie effect and user effect + regularization: ", min(regularized_rmses)))
+print(paste(
+  "RMSE of baseline + temporal movie effect and user effect + regularization: ",
+  min(regularized_rmses)
+  ))
 
 ```
 
