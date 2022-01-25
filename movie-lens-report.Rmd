@@ -1,5 +1,5 @@
 ---
-title: "MovieLens Project"
+title: "A prediction model for the MovieLens data set."
 author: "Xabriel J Collazo Mojica"
 date: "1/13/2022"
 output:
@@ -69,11 +69,11 @@ load("~/Dropbox/Personal/Hobbies/Programming/R/movie-lens/Pristine edx and valid
 
 (an **introduction/overview/executive summary** section that describes the dataset and summarizes the goal of the project and key steps that were performed)
 
-Collaborative filtering systems allow users to leverage work made by other users. One common application is the recommendation of movies. Users input ratings of movies they have seen, typically using a 5-star scale, and the system then predicts how the user would rate other movies based on ratings previously made by other users.
+Collaborative filtering systems, a type of recommendation systems, allow users to leverage work made by other users. One common application is the recommendation of movies. Users input ratings of movies they have seen, typically using a 5-star scale, and the system then predicts how the user would rate other movies based on ratings previously made.
 
-The GroupLens Research Group at the University of Minnesota publishes multiple versions of 'MovieLens', a dataset of movie ratings, so that other interested parties can analyze and learn from it. In this work, we utilize a [version of their dataset](http://files.grouplens.org/datasets/movielens/ml-10m-README.html) that includes 10 million ratings selected randomly from their complete dataset.
+The GroupLens Research Group at the University of Minnesota publishes multiple versions of *MovieLens*, a data set of movie ratings, so that other interested parties can analyze and learn from it. In this work, we utilize a version of their dataset that includes 10 million ratings selected randomly from their complete dataset [MovieLens].
 
-The dataset is composed of two files. The first file, `movies.dat`, contains information about the movies themselves. Its format is as follows:
+The data set is composed of two files. The first file, `movies.dat`, contains information about the movies themselves. Its format is as follows:
 
     MovieID::Title::Genres
 
@@ -93,9 +93,9 @@ Notice that this file is delimited by a double colon (`::`), and it includes a m
 
 This file is delimited in the same format, and includes a user identifier, a movie identifier that we can match with the previous file, an integer rating from 1 to 5, and timestamps that represent seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970.
 
-We use common data import and wrangling techniques to convert these two files into a single object that is more amenable to our purposes. We also divide the data randomly into three sets: 10% is a validation set, which we only utilize for final evaluation of the solution. 72% is a train set, utilized to build our model, and finally 18% of the data is used as a test set to continually asses our progress.
+We use common data import and wrangling techniques to convert these two files into a single object that is more amenable to our purposes. We also divide the data randomly into three sets: 10% is a validation set, which we only utilize for final evaluation of the solution. 72% is a train set, utilized to build our model, and the remaining 18% of the data is used as a test set to continually asses our progress.
 
-We model the problem as a the sum of multiple effects given by different features of the dataset. The model looks like so:
+We model the problem as a sum of multiple effects given by different features of the dataset. Later in this report we explain in detail our model, but for now we present its final form:
 
 $$
 Y_{u,i} = \mu + b_i(t) + b_u + \varepsilon_{u,i}
@@ -103,25 +103,19 @@ $$
 
 where:
 
-$\mu$: the average rating of all movies in the dataset
+$Y_{u,i}$: the predicted ratings for all movie and user pairs.
 
-$b_i(t)$: Some items (in our case movies) will invariably be rated higher (or lower) than $\mu$, thus this term accounts for the "bias" (or "effects") allocated to the rated item. We notice that the item effect also has a time effect, thus we account for this as well.
+$\mu$: the average rating of all movies in the train set.
 
-$b_u$: Some users will tend to rate higher, while other will tend to rate lower, thus this term accounts for the "bias" (or "effects") allocated to the user
+$b_i(t)$: term that accounts for the "effect" (or "bias") allocated to the rated item. We notice that our data also has a temporal component, thus we account for this as well.
 
-$\varepsilon_{u,i}$ is the error for each movie and user pair when comparing to the actual ratings
+$b_u$: term that accounts for the effect allocated to the user.
 
-$Y_{u,i}$ is the predicted ratings for all movie and user pairs.
+$\varepsilon_{u,i}$ is the error for each movie and user pair when comparing to the actual ratings.
 
-We try to learn each of the effects above by iteratively building the model, that is, first we learn $\mu$, then $b_i(t)$ based on $\mu$, then $b_u$ based on $\mu$ and $b_i(t)$. As a final modeling step, we also apply regularization, to control the effect of movies that have skew the results too much with to few ratings. We find that with these steps, called 'baseline predictors' in the literature, we reach a reasonable accuracy without the need of more elaborate techniques.
+We try to learn each of the effects above by applying the least squares method [LeastSquares], that is, as we add more terms to the model, we try to minimize $\varepsilon_{u,i}$. As a final modeling step, we also apply regularization, to control the effect of movies that skew the results too much with too few ratings.
 
-The goal of the project is to apply techniques to minimize the root mean square error (RMSE) of this model when comparing our predicted ratings $\hat Y_{u,i}$ to the actual ratings $Y_{u,i}$:
-
-$$
-RMSE=sqrt(mean(Y_{u.i} - \hat Y_{u,i})^2)
-$$
-
-More specifically, we intend to build a model that surpasses `RMSE < 0.86490`.
+The goal of the project is to find a model and parameters that minimize the root mean square error $RMSE=sqrt(mean(Y_{u.i} - \hat Y_{u,i})^2)$. We intend to build a model that surpasses `RMSE < 0.86490`. We find that we reach this threshold by implementing the model above, without the need of more elaborate techniques.
 
 ## Methodology and Implementation
 
@@ -144,19 +138,13 @@ test_set <- edx[test_index, ]
 test_set <- test_set %>%
   semi_join(train_set, by = "movieId") %>%
   semi_join(train_set, by = "userId")
-
-# To test our progress, we define a function to compute the
-# root-mean-square error:
-RMSE <- function(true_ratings, predicted_ratings) {
-  sqrt(mean((true_ratings - predicted_ratings) ^ 2))
-}
 ```
 
-### Understanding the problem model
+### Understanding the model
 
-There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry]. The common model of the problem trying to predict a particular users $u$ rating of item $i$ as the sum of multiple effects given by different features of the dataset. That is, we explore the dataset to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with visualizations.
+There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry]. We want to find a model for predicting a user $u$ rating of item $i$ given other users ratings, as well as current users ratings of other items. This is typically modeled as the sum of multiple effects given by different features of the dataset. That is, we explore the data set to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with a visualization.
 
-Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of the data points, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon\_{u,i}$ is the blue vertical line between mu and the data points. Notice that all the predictions lay in the mean; this model so far is not too useful, but a good starting point. We now want to continue making $\varepsilon\_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
+Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of all the ratings, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon_{u,i}$ is the blue vertical line between mu and the data points. Notice that all the predictions lay in the mean; this model so far is not too useful, but a good starting point. We now want to continue making $\varepsilon_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
 
 ```{r}
 mu <- mean(train_set$rating)
@@ -183,19 +171,22 @@ sample %>%
   scale_colour_manual(values = c("green", "blue", "red"))
 ```
 
-For now, we can test our current model by calculating the RMSE:
+With this base model, we can utilize our test set to calculate the current RMSE:
 
 ```{r}
-model_baseline <- mu
-rmse_baseline <- RMSE(test_set$rating, model_baseline)
+RMSE <- function(true_ratings, predicted_ratings) {
+  sqrt(mean((true_ratings - predicted_ratings) ^ 2))
+}
+
+rmse_baseline <- RMSE(test_set$rating, mu)
 print(paste("RMSE of average: ", rmse_baseline))
 ```
 
 ### The item effect
 
-As we observe in the previous visualization, most items will invariably be rated higher (or lower) than $\mu$. In the case of movies, we know this by intuition: we like some movies much better than others. To account for this, we add a term that models the effect of the rated item: $$
-Y_{u,i} = \mu + b_i \varepsilon_{u,i}
-$$ We discover this effect by grouping all the ratings for a particular item, and figuring out how much of the variance from the mean $\mu$ they can explain:
+As we observed in the previous visualization, most items will invariably be rated different than $\mu$. In the case of movies, we know this by intuition: we like some movies much better than others. To account for this, we add a term that models the effect of the rated item: $$
+Y_{u,i} = \mu + b_i + \varepsilon_{u,i}
+$$ We can use linear regression to calculate $b_i$, but with 7.2 million points in the train set, the calculation quickly becomes intractable. Thus we opt for grouping all the ratings for a particular item, and approximating its least squares solution:
 
 ```{r}
 regular_movie_effect <- train_set %>%
@@ -203,7 +194,7 @@ regular_movie_effect <- train_set %>%
   summarize(b_i = mean(rating - mu))
 ```
 
-Does this effect achieve significant gains from our previous RMSE?
+We now apply the modified model to the test set and compute the RMSE:
 
 ```{r}
 movie_effect_on_test_set <-
@@ -215,7 +206,7 @@ rmse_movie_effect <- RMSE(test_set$rating, movie_effect_on_test_set$model)
 print(paste("RMSE of average + movie effect: ", rmse_movie_effect))
 ```
 
-Going back to our running example, we visually confirm that indeed the movie effect explains some of the variance. Notice that some predictions got better (red point closer to green point), while some others got worse! In general, however, we observed in the RMSE calculation that we are better off.
+Going back to our running example, we visually confirm that indeed the movie effect materially changes the outcome. Notice that some predictions got better (red point closer to green point), while some others got worse! On average, however, we observed in the RMSE calculation that we are better off.
 
 ```{r}
 mu <- mean(train_set$rating)
@@ -236,7 +227,7 @@ sample %>%
   scale_colour_manual(values = c("green", "blue", "red"))
 ```
 
-Applying insight from the work of [Koren], we notice that there seems to also be a *temporal* item effect. That is, the mean rating of an item changes over time. Let's visualize this effect with the movies associated to our running example data points. In the code below we create temporal bins, that is, we divide the time into n bins and we put every rating into one of the bins. Later we calculate the mean rating of each movie for each bin.
+Applying insight from the work of [Koren], we notice that there also seems to be a *temporal* item effect. That is, the mean rating of an item changes over time. Let's visualize this effect with the movies associated to our running example data points. In the code below we create temporal bins; we divide time into $n$ bins and we put every rating into one of the bins. Later we calculate the mean rating of each movie for each bin.
 
 ```{r}
 movieIds <- sample %>% pull(movieId)
@@ -259,44 +250,44 @@ train_set %>%
 Notice how the movies' means do indeed change over time. This effect could be explained by seasonality of the movies, or changing taste of users over time. Regardless, it is there, so we modify our model to account for it:
 
 $$
-Y\_{u,i} = \mu + b_i(t)
+Y_{u,i} = \mu + b_i(t) + \varepsilon_{u,i}
 $$ where: $$
 b_i(t) = b_i + b_{i,Bin(t)}
 $$
 
-The number of bins now becomes a tuning parameter, and we use our test data to figure it out:
+Note the $b_{i,Bin(t)}$ term depends on both the item and the temporal bin. Before we had arbitrarily chosen $n = 10$ for illustration purposes, but to minimize the RMSE, the number of bins becomes a tuning parameter, and we use our test data and least squares to find it:
 
 ```{r bins}
 bin_range <- append(c(1, 2, 3, 4), seq(5, 25, 5))
 
 binned_movie_effect_rmses <- sapply(bin_range, function(num_bins) {
-  max_timestamp <-
-    max(train_set$timestamp) + 86400 # one day margin to be safe
+  max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
   min_timestamp <- min(train_set$timestamp) - 86400
   bin_size <- (max_timestamp - min_timestamp) / num_bins
-  
-  # calculate the regular movie effect
+
   regular_movie_effect <- train_set %>%
     group_by(movieId) %>%
     summarize(b_i = mean(rating - mu))
-  
-  # calculate the temporal movie effect
+
   binned_movie_effect <- train_set %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     group_by(movieId, bin) %>%
     summarize(b_i_t = mean(rating - mu - b_i))
-  
-  # apply the movie effect to test set
+
   movie_effect_on_test_set <-
     test_set %>%
     mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+    # we coalesce b_i_t, as test set may have movie ratings in bins that we did not see
+    # in the train set. Thus, in those cases, we default to 0.
     mutate(model = mu + b_i + coalesce(b_i_t, 0))
 
   RMSE(test_set$rating, movie_effect_on_test_set$model)
 })
+
+best_bin_num <- bin_range[which.min(binned_movie_effect_rmses)]
 
 data.frame(num_bins = bin_range,
            rmse = binned_movie_effect_rmses) %>%
@@ -304,10 +295,9 @@ data.frame(num_bins = bin_range,
   geom_point()
 ```
 
-Let's compute the RMSE so far:
+We find that `r best_bin_num` bins provide the best RMSE of:
 
 ```{r}
-best_bin_num <- bin_range[which.min(binned_movie_effect_rmses)]
 print(paste(
   "RMSE of average + temporal movie effect: ",
   min(binned_movie_effect_rmses)
@@ -316,7 +306,7 @@ print(paste(
 
 ### The user effect
 
-We all have personal preferences. Some of us are harsh critics, some of us like most movies. This effect can be observed by looking at a histogram of average rating by user:
+Some of us are harsh critics, some of us like most movies. This effect can be observed by looking at a histogram of average rating by user:
 
 ```{r}
 train_set %>%
@@ -326,21 +316,20 @@ train_set %>%
   geom_histogram(bins = 30)
 ```
 
-We can account for this effect by adding one more term to our model: $$
+We can account for this effect by adding one more term to our model:
+$$
 Y_{u,i} = \mu + b_i(t) + b_u + \varepsilon_{u,i}
 $$
 
-Similar to other effects, to compute $b_u$ we group data by user, and subtract all other effects:
+Just like with other effects, to compute $b_u$ we group data by user, and approximate a least squares fit:
 
 ```{r}
 bin_size <- (max_timestamp - min_timestamp) / best_bin_num
 
-# calculate the regular movie effect
 regular_movie_effect <- train_set %>%
   group_by(movieId) %>%
   summarize(b_i = mean(rating - mu))
 
-# calculate the temporal movie effect
 binned_movie_effect <- train_set %>%
   left_join(regular_movie_effect, by = "movieId") %>%
   mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
@@ -355,7 +344,7 @@ user_effect <- train_set %>%
   summarise(b_u = mean(rating - mu - b_i - coalesce(b_i_t, 0)))
 ```
 
-We compute the RMSE on the test set:
+We now compute the RMSE on the test set:
 
 ```{r}
 user_effect_on_test_set <-
@@ -376,7 +365,7 @@ print(
 )
 ```
 
-Finally, we confirm visually with the running example:
+Finally, we confirm visually with the running example that there was material change:
 
 ```{r}
 mu <- mean(train_set$rating)
@@ -402,9 +391,10 @@ sample %>%
 
 ### Regularization
 
-The final improvement we do in this work is the application of regularization. We want to control the effect of ratings where we have low confidence, that is, movies that were rated by few users, and users that made few ratings, should weight less. And we do have significant amount of movies and users in that category:
+The final improvement we do in this work is the application of regularization. We want to control the effect of ratings where we have low confidence, that is, movies that were rated by few users, and users that made few ratings, should weight less. And we do have a significant amount of movies and users in that category:
 
 ```{r}
+# movies with few ratings
 train_set %>%
   group_by(movieId) %>%
   summarise(n = n()) %>%
@@ -412,6 +402,7 @@ train_set %>%
   select(n) %>%
   table()
 
+# users that made few ratings
 train_set %>%
   group_by(userId) %>%
   summarise(n = n()) %>%
@@ -420,9 +411,24 @@ train_set %>%
   table()
 ```
 
-As per [Irizarry]: "Regularization permits us to penalize large estimates that are formed using small sample sizes... Specifically, instead of minimizing the least squares equation, we minimize an equation that adds a penalty: $$
-\sum_{u,i} \left(y_{u,i} - \mu - b_i - b_u \right)^2 + 
-\lambda \left(\sum_{i} b_i^2 + \sum_{u} b_u^2\right)
+As per [Irizarry]:
+
+> "Regularization permits us to penalize large estimates that are formed using small sample sizes...Specifically, instead of minimizing the least squares equation, we minimize an equation that adds a penalty."
+
+This penalty looks like so:
+$$
+\sum_{u,i} \left(y_{u,i} - \mu - b_i(t) - b_u \right)^2 + 
+\lambda \left(\sum_{i} b_i(t)^2 + \sum_{u} b_u^2\right)
+$$
+
+Additionally, it can be shown that the values for $b_i(t)$ and $b_u$ that minimize the above equation are:
+
+$$
+\hat{b}_i(t,\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
+$$
+and
+$$
+\hat{b}_u(\lambda) = \frac{1}{\lambda + n_u} \sum_{i=1}^{n_u} \left(Y_{u,i} - \hat{\mu}\right)
 $$
 
 The penalty $\lambda$ thus becomes a tuning parameter:
@@ -433,19 +439,16 @@ lambdas <- seq(6, 8, 0.25)
 regularized_rmses <- sapply(lambdas, function(lambda) {
   bin_size <- (max_timestamp - min_timestamp) / best_bin_num
 
-  # calculate the regular movie effect
   regular_movie_effect <- train_set %>%
     group_by(movieId) %>%
     summarize(b_i = sum(rating - mu) / (n() + lambda))
 
-  # calculate the temporal movie effect
   binned_movie_effect <- train_set %>%
     left_join(regular_movie_effect, by = "movieId") %>%
     mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     group_by(movieId, bin) %>%
     summarize(b_i_t = sum(rating - mu - b_i) / (n() + lambda))
 
-  # calculate the user effect
   user_effect <- train_set %>%
     mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
     left_join(regular_movie_effect, by = "movieId") %>%
@@ -476,14 +479,13 @@ print(paste(
   "RMSE of baseline + temporal movie effect and user effect + regularization: ",
   min(regularized_rmses)
 ))
-
 ```
 
 ## Results
 
-We iteratively improved our model as attested by our test set results:
+We iteratively improved our model as seen on our test set RMSE results:
 
-```{r}
+```{r echo=FALSE}
 
 descriptions <- c(
   "Average",
@@ -515,6 +517,7 @@ data.frame(
   difference = diff
 )
 ```
+
 We notice that we gain the most from the movie effect, as well as the user effect. The temporal movie effect and regularization gives us marginal benefits.
 
 We can now do a final evaluation with the validation set:
@@ -522,19 +525,16 @@ We can now do a final evaluation with the validation set:
 ```{r}
 bin_size <- (max_timestamp - min_timestamp) / best_bin_num
 
-# calculate the regular movie effect
 regular_movie_effect <- train_set %>%
   group_by(movieId) %>%
   summarize(b_i = sum(rating - mu) / (n() + best_lambda))
 
-# calculate the temporal movie effect
 binned_movie_effect <- train_set %>%
   left_join(regular_movie_effect, by = "movieId") %>%
   mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   group_by(movieId, bin) %>%
   summarize(b_i_t = sum(rating - mu - b_i) / (n() + best_lambda))
 
-# calculate the user effect
 user_effect <- train_set %>%
   mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   left_join(regular_movie_effect, by = "movieId") %>%
@@ -548,7 +548,7 @@ results_on_validation <-
   left_join(regular_movie_effect, by = "movieId") %>%
   left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
   left_join(user_effect, by = "userId") %>%
-  # coalesce b_i since validation includes some unknown movies.
+  # coalesce b_i since validation set includes some unknown movies.
   mutate(model = mu + coalesce(b_i, 0) + coalesce(b_i_t, 0) + b_u)
 
 rmse_validation = RMSE(validation$rating, results_on_validation$model)
@@ -563,6 +563,10 @@ print(paste("RMSE of final model on validation set: ", rmse_validation))
 
 ## Citations
 
-[Koren] : Yehuda Koren. 2009. Collaborative filtering with temporal dynamics. In *Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining* (*KDD '09*). Association for Computing Machinery, New York, NY, USA, 447--456. DOI:<https://doi.org/10.1145/1557019.1557072>. Available for free download [here](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.379.1951&rep=rep1&type=pdf).
-
 [Irizarry] : Rafael A. Irizarry. Introduction to Data Science: *Data Analysis and Prediction Algorithms with R.* Retrieved January 24, 2022 from <https://rafalab.github.io/dsbook/index.html>.
+
+[Koren] : Yehuda Koren. 2009. Collaborative filtering with temporal dynamics. In *Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining* (*KDD '09*). Association for Computing Machinery, New York, NY, USA, 447--456. DOI:<https://doi.org/10.1145/1557019.1557072>. Available for free download at <http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.379.1951&rep=rep1&type=pdf>.
+
+[LeastSquares] : Wikipedia contributors. Least squares. Wikipedia, The Free Encyclopedia. January 10, 2022, 14:16 UTC. Available at: <https://en.wikipedia.org/w/index.php?title=Least_squares&oldid=1064847980>. Accessed January 25, 2022.
+
+[MovieLens] : F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM Transactions on Interactive Intelligent Systems (TiiS) 5, 4, Article 19 (December 2015), 19 pages. DOI=<http://dx.doi.org/10.1145/2827872>. Dataset availabe for free download at: <http://files.grouplens.org/datasets/movielens/ml-10m-README.html>.
