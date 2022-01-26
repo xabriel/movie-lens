@@ -53,233 +53,203 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 # Start of code by Xabriel J Collazo Mojica
 ##########################################################
 
-# First, divide the dataset into training and test sets
-set.seed(1, sample.kind="Rounding")
-test_index <- createDataPartition(y = edx$rating, times = 1, p = 0.2, list = FALSE)
-train_set <- edx[-test_index,]
-test_set <- edx[test_index,]
+# First, divide the data set into training and test sets
+set.seed(1, sample.kind = "Rounding")
+test_index <-
+  createDataPartition(
+    y = edx$rating,
+    times = 1,
+    p = 0.2,
+    list = FALSE
+  )
+train_set <- edx[-test_index, ]
+test_set <- edx[test_index, ]
 
 # Make sure userId and movieId in train_set set are also in test_set
-test_set <- test_set %>% 
+test_set <- test_set %>%
   semi_join(train_set, by = "movieId") %>%
   semi_join(train_set, by = "userId")
 
-# To test our progress, we define a function to compute the
-# root-mean-square error:
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
+# Let's define our objective function: root mean square error
+RMSE <- function(true_ratings, predicted_ratings) {
+  sqrt(mean((true_ratings - predicted_ratings) ^ 2))
 }
 
-# as a base model, let's calculate the average rating mu
+# First model iteration is just the average:
+# Y = mu + error
 mu <- mean(train_set$rating)
 
-# we can now compute a simple model that just guesses the average rating.
-# In the literature, this is called a 'baseline rating'.
-model_baseline <- mu
-rmse_baseline <- RMSE(test_set$rating, model_baseline)
-print(paste("RMSE of baseline model: ", rmse_baseline))
+rmse_baseline <- RMSE(test_set$rating, mu)
+print(paste("RMSE of average: ", rmse_baseline))
 
-# let's add a movie effect and a temporal movie effect; the rationale being that some movies are simply rated higher than other movies, and also that movie go thru cycles.
-
-# create n temporal bins that span the full dataset
-
-bin_range <- append(c(1,2,3,4), seq(5, 100, 5))
-
-binned_movie_effect_rmses <- sapply(bin_range, function(num_bins) {
-
-  max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
-  min_timestamp <- min(train_set$timestamp) - 86400
-  bin_size <- (max_timestamp - min_timestamp) / num_bins
-
-  # calculate the regular movie effect
-  regular_movie_effect <- train_set %>%
-    group_by(movieId) %>%
-    summarize(b_i = mean(rating - mu))
-
-  # calculate the temporal movie effect
-  binned_movie_effect <- train_set %>%
-    left_join(regular_movie_effect, by = "movieId") %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    group_by(movieId, bin) %>%
-    summarize(b_i_t = mean(rating - mu - b_i))
-
-  # apply the movie effect to test set
-  movie_effect_on_test_set <-
-    test_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    left_join(regular_movie_effect, by = "movieId") %>%
-    left_join(binned_movie_effect, by = c("movieId", "bin"))
-
-  model_movie_effect <-
-    mu +
-    coalesce(movie_effect_on_test_set$b_i_t, 0) +
-    movie_effect_on_test_set$b_i
-
-  RMSE(test_set$rating, model_movie_effect)
-})
-
-# now repeat once more with best bin_num
-# TODO: we should really make a function out of this calculation and reuse it
-
-best_bin_num <- bin_range[which.min(binned_movie_effect_rmses)]
-
-num_bins <- best_bin_num
-max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
-min_timestamp <- min(train_set$timestamp) - 86400
-bin_size <- (max_timestamp - min_timestamp) / num_bins
-
-# the test data likely has movieId-bin permutations that we did not see in
-# the train data. So let's also compute a regular movie effect
+# Second model iteration uses least squares approximation to discover an item effect
+# Y = mu + bi + error
 regular_movie_effect <- train_set %>%
   group_by(movieId) %>%
   summarize(b_i = mean(rating - mu))
 
-# calculate the temporal movie effect
+# apply model to test set
+movie_effect_on_test_set <-
+  test_set %>%
+  left_join(regular_movie_effect, by = "movieId") %>%
+  mutate(model = mu + b_i)
+
+rmse_movie_effect <- RMSE(test_set$rating, movie_effect_on_test_set$model)
+print(paste("RMSE of average + movie effect: ", rmse_movie_effect))
+
+# There also seems to be a *temporal* item effect. That is, the mean rating of an item
+# changes over time. We can use least squares to discover it. Let's incorporate on model:
+# Y = mu + bi + bi(t) + error
+
+# divide time into n bins, find what n is best based on RMSE
+bin_range <- append(c(1, 2, 3, 4), seq(5, 25, 5))
+max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
+min_timestamp <- min(train_set$timestamp) - 86400
+
+binned_movie_effect_rmses <- sapply(bin_range, function(num_bins) {
+  bin_size <- (max_timestamp - min_timestamp) / num_bins
+  
+  regular_movie_effect <- train_set %>%
+    group_by(movieId) %>%
+    summarize(b_i = mean(rating - mu))
+  
+  binned_movie_effect <- train_set %>%
+    left_join(regular_movie_effect, by = "movieId") %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+    group_by(movieId, bin) %>%
+    summarize(b_i_t = mean(rating - mu - b_i))
+  
+  # apply model to test set
+  movie_effect_on_test_set <-
+    test_set %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+    left_join(regular_movie_effect, by = "movieId") %>%
+    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+    # we coalesce b_i_t, as test set may have movie ratings in bins that we did not see
+    # in the train set. Thus, in those cases, we default to 0.
+    mutate(model = mu + b_i + coalesce(b_i_t, 0))
+  
+  RMSE(test_set$rating, movie_effect_on_test_set$model)
+})
+
+best_bin_num <- bin_range[which.min(binned_movie_effect_rmses)]
+
+print(paste(
+  "RMSE of average + temporal movie effect: ",
+  min(binned_movie_effect_rmses)
+))
+
+# Let's add a user effect. Using least squares we can discover it.
+# Y = mu + bi + bi(t) + bu + error
+
+# use best bin size from previous code
+bin_size <- (max_timestamp - min_timestamp) / best_bin_num
+
+regular_movie_effect <- train_set %>%
+  group_by(movieId) %>%
+  summarize(b_i = mean(rating - mu))
+
 binned_movie_effect <- train_set %>%
   left_join(regular_movie_effect, by = "movieId") %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   group_by(movieId, bin) %>%
   summarize(b_i_t = mean(rating - mu - b_i))
 
-# FIXME: prefer sum of effects for consistency with Koren, lets fix the other pieces as well
-
-# apply the movie effect to test set, preferring the temporal one if available
-movie_effect_on_test_set <-
-  test_set %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
-  left_join(regular_movie_effect, by = "movieId")
-
-model_movie_effect <-
-  mu +
-  coalesce(movie_effect_on_test_set$b_i_t, 0) +
-  movie_effect_on_test_set$b_i
-rmse_movie_effect <- RMSE(test_set$rating, model_movie_effect)
-print(paste("RMSE of baseline + temporal movie effect: ", rmse_movie_effect))
-
-# let's add a user effect; some users are harsh critics, some always give 5's.
 user_effect <- train_set %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
   left_join(regular_movie_effect, by = "movieId") %>%
+  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
   group_by(userId) %>%
-  summarise(b_u = mean(rating - mu - coalesce(b_i_t, b_i)))
-# rmse
-user_effect_on_test_set <- test_set %>% inner_join(user_effect, by = "userId") %>% pull(b_u)
-model_movie_and_user_effect <-
-  mu + coalesce(movie_effect_on_test_set$b_i_t, movie_effect_on_test_set$b_i) +
-  user_effect_on_test_set
-rmse_movie_and_user_effect <- RMSE(test_set$rating, model_movie_and_user_effect)
-print(paste("RMSE of baseline + temporal movie effect and user effect: ", rmse_movie_and_user_effect))
+  summarise(b_u = mean(rating - mu - b_i - coalesce(b_i_t, 0)))
 
-# after fixing to use just train set, we now get .8625 :(
+# apply model to test set
+user_effect_on_test_set <-
+  test_set %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  left_join(regular_movie_effect, by = "movieId") %>%
+  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  left_join(user_effect, by = "userId") %>%
+  mutate(model = mu + b_i + coalesce(b_i_t, 0) + b_u)
 
-# let's now regularize the effects since some users do few ratings
-# and some movies have few ratings
+rmse_movie_and_user_effect <-
+  RMSE(test_set$rating, user_effect_on_test_set$model)
+print(
+  paste(
+    "RMSE of baseline + temporal movie effect and user effect: ",
+    rmse_movie_and_user_effect
+  )
+)
 
-lambdas <- seq(0, 10, 0.25)
+# Now apply regularization to penalize predictions with few ratings,
+# or users with few ratings. Lets find what the best lambda is:
+lambdas <- seq(6, 8, 0.25)
 
-regularized_rmses <- sapply(lambdas, function(lambda){
-  mu <- mean(train_set$rating)
-
-  num_bins <- best_bin_num
-  max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
-  min_timestamp <- min(train_set$timestamp) - 86400
-  bin_size <- (max_timestamp - min_timestamp) / num_bins
+regularized_rmses <- sapply(lambdas, function(lambda) {
+  bin_size <- (max_timestamp - min_timestamp) / best_bin_num
   
-  # calculate the temporal movie effect
-  binned_movie_effect <- train_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    group_by(movieId, bin) %>%
-    summarize(b_i_t = sum(rating - mu)/ (n()+lambda))
-  
-  # the test data likely has movieId-bin permutations that we did not see in
-  # the train data. So let's also compute a regular movie effect
   regular_movie_effect <- train_set %>%
     group_by(movieId) %>%
-    summarize(b_i = sum(rating - mu)/ (n()+lambda))
+    summarize(b_i = sum(rating - mu) / (n() + lambda))
   
-  # apply the movie effect to test set, preferring the temporal one if available
-  movie_effect_on_test_set <-
-    test_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
-    left_join(regular_movie_effect, by = "movieId")
-  
-  model_movie_effect <-
-    mu + coalesce(movie_effect_on_test_set$b_i_t, movie_effect_on_test_set$b_i)
-  rmse_movie_effect <- RMSE(test_set$rating, model_movie_effect)
-  print(paste("RMSE of baseline + temporal movie effect + regularization: ", rmse_movie_effect))
-  
-  # let's add a user effect; some users are harsh critics, some always give 5's.
-  user_effect <- train_set %>%
-    mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  binned_movie_effect <- train_set %>%
     left_join(regular_movie_effect, by = "movieId") %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+    group_by(movieId, bin) %>%
+    summarize(b_i_t = sum(rating - mu - b_i) / (n() + lambda))
+  
+  user_effect <- train_set %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+    left_join(regular_movie_effect, by = "movieId") %>%
+    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
     group_by(userId) %>%
-    summarise(b_u = sum(rating - mu - coalesce(b_i_t, b_i)) / (n() + lambda))
-  # rmse
-  user_effect_on_test_set <- test_set %>% inner_join(user_effect, by = "userId") %>% pull(b_u)
-  model_movie_and_user_effect <-
-    mu + coalesce(movie_effect_on_test_set$b_i_t, movie_effect_on_test_set$b_i) +
-    user_effect_on_test_set
-  rmse_movie_and_user_effect <- RMSE(test_set$rating, model_movie_and_user_effect)
-  print(paste("RMSE of baseline + temporal movie effect and user effect + regularization: ", rmse_movie_and_user_effect))
-
-  rmse_movie_and_user_effect
+    summarise(b_u = sum(rating - mu - b_i - coalesce(b_i_t, 0)) / (n() + lambda))
+  
+  regularization_on_test_set <-
+    test_set %>%
+    mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+    left_join(regular_movie_effect, by = "movieId") %>%
+    left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+    left_join(user_effect, by = "userId") %>%
+    mutate(model = mu + b_i + coalesce(b_i_t, 0) + b_u)
+  
+  RMSE(test_set$rating, regularization_on_test_set$model)
 })
 
-qplot(lambdas, regularized_rmses)
-
 best_lambda <- lambdas[which.min(regularized_rmses)]
+print(paste(
+  "RMSE of baseline + temporal movie effect and user effect + regularization: ",
+  min(regularized_rmses)
+))
 
+# we are happy with current RMSE, so we now do a final evaluation with the validation set:
+bin_size <- (max_timestamp - min_timestamp) / best_bin_num
 
-# finally, test with validation:
-
-mu <- mean(train_set$rating)
-
-num_bins <- best_bin_num
-max_timestamp <- max(train_set$timestamp) + 86400 # one day margin to be safe
-min_timestamp <- min(train_set$timestamp) - 86400
-bin_size <- (max_timestamp - min_timestamp) / num_bins
-
-# calculate the temporal movie effect
-binned_movie_effect <- train_set %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-  group_by(movieId, bin) %>%
-  summarize(b_i_t = sum(rating - mu)/ (n()+best_lambda))
-
-# the test data likely has movieId-bin permutations that we did not see in
-# the train data. So let's also compute a regular movie effect
 regular_movie_effect <- train_set %>%
   group_by(movieId) %>%
-  summarize(b_i = sum(rating - mu)/ (n()+best_lambda))
+  summarize(b_i = sum(rating - mu) / (n() + best_lambda))
 
-# apply the movie effect to test set, preferring the temporal one if available
-movie_effect_on_test_set <-
-  validation %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
-  left_join(regular_movie_effect, by = "movieId")
-
-model_movie_effect <-
-  mu + coalesce(movie_effect_on_test_set$b_i_t, movie_effect_on_test_set$b_i, 0)
-rmse_movie_effect <- RMSE(validation$rating, model_movie_effect)
-print(paste("RMSE of baseline + temporal movie effect + regularization: ", rmse_movie_effect))
-
-# let's add a user effect; some users are harsh critics, some always give 5's.
-user_effect <- train_set %>%
-  mutate(bin = ceiling( (timestamp - min_timestamp) / bin_size )) %>%
-  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+binned_movie_effect <- train_set %>%
   left_join(regular_movie_effect, by = "movieId") %>%
-  group_by(userId) %>%
-  summarise(b_u = sum(rating - mu - coalesce(b_i_t, b_i, 0)) / (n() + best_lambda))
-# rmse
-user_effect_on_test_set <- validation %>% inner_join(user_effect, by = "userId") %>% pull(b_u)
-model_movie_and_user_effect <-
-  mu + coalesce(movie_effect_on_test_set$b_i_t, movie_effect_on_test_set$b_i, 0) +
-  user_effect_on_test_set
-rmse_movie_and_user_effect <- RMSE(validation$rating, model_movie_and_user_effect)
-print(paste("RMSE of baseline + temporal movie effect and user effect + regularization: ", rmse_movie_and_user_effect))
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  group_by(movieId, bin) %>%
+  summarize(b_i_t = sum(rating - mu - b_i) / (n() + best_lambda))
 
-# "RMSE of baseline + temporal movie effect and user effect + regularization:  0.861813658382263"
+user_effect <- train_set %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  left_join(regular_movie_effect, by = "movieId") %>%
+  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  group_by(userId) %>%
+  summarise(b_u = sum(rating - mu - b_i - coalesce(b_i_t, 0)) / (n() + best_lambda))
+
+# apply model to validation set
+results_on_validation <-
+  validation %>%
+  mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
+  left_join(regular_movie_effect, by = "movieId") %>%
+  left_join(binned_movie_effect, by = c("movieId", "bin")) %>%
+  left_join(user_effect, by = "userId") %>%
+  # coalesce b_i since validation set includes some unknown movies.
+  mutate(model = mu + coalesce(b_i, 0) + coalesce(b_i_t, 0) + b_u)
+
+rmse_validation = RMSE(validation$rating, results_on_validation$model)
+print(paste("RMSE of final model on validation set: ", rmse_validation))
