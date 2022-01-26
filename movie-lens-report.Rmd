@@ -1,5 +1,5 @@
 ---
-title: "A Prediction Model for the MovieLens Data Set."
+title: "A Prediction Model for the MovieLens Data Set"
 author: "Xabriel J Collazo Mojica"
 date: "1/13/2022"
 output:
@@ -24,45 +24,44 @@ library(tidyverse)
 library(caret)
 library(data.table)
 
-# # MovieLens 10M dataset:
-# # https://grouplens.org/datasets/movielens/10m/
-# # http://files.grouplens.org/datasets/movielens/ml-10m.zip
-# 
-# if(!exists("edx")) {
-#   dl <- tempfile()
-#   download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-#   
-#   if(!exists("ratings"))ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-#                    col.names = c("userId", "movieId", "rating", "timestamp"))
-#   
-#   movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
-#   colnames(movies) <- c("movieId", "title", "genres")
-#   
-#   # if using R 4.0 or later:
-#   movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
-#                                              title = as.character(title),
-#                                              genres = as.character(genres))
-#   
-#   movielens <- left_join(ratings, movies, by = "movieId")
-#   
-#   # Validation set will be 10% of MovieLens data
-#   set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
-#   test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
-#   edx <- movielens[-test_index,]
-#   temp <- movielens[test_index,]
-#   
-#   # Make sure userId and movieId in validation set are also in edx set
-#   validation <- temp %>% 
-#     semi_join(edx, by = "movieId") %>%
-#     semi_join(edx, by = "userId")
-#   
-#   # Add rows removed from validation set back into edx set
-#   removed <- anti_join(temp, validation)
-#   edx <- rbind(edx, removed)
-#   
-#   rm(dl, ratings, movies, test_index, temp, movielens, removed)
-# }
-load("~/Dropbox/Personal/Hobbies/Programming/R/movie-lens/Pristine edx and validation.RData")
+# MovieLens 10M dataset:
+# https://grouplens.org/datasets/movielens/10m/
+# http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+if(!exists("edx")) {
+  dl <- tempfile()
+  download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+  if(!exists("ratings"))ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                   col.names = c("userId", "movieId", "rating", "timestamp"))
+
+  movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+  colnames(movies) <- c("movieId", "title", "genres")
+
+  # if using R 4.0 or later:
+  movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                             title = as.character(title),
+                                             genres = as.character(genres))
+
+  movielens <- left_join(ratings, movies, by = "movieId")
+
+  # Validation set will be 10% of MovieLens data
+  set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+  test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+  edx <- movielens[-test_index,]
+  temp <- movielens[test_index,]
+
+  # Make sure userId and movieId in validation set are also in edx set
+  validation <- temp %>%
+    semi_join(edx, by = "movieId") %>%
+    semi_join(edx, by = "userId")
+
+  # Add rows removed from validation set back into edx set
+  removed <- anti_join(temp, validation)
+  edx <- rbind(edx, removed)
+
+  rm(dl, ratings, movies, test_index, temp, movielens, removed)
+}
 ```
 
 ## Introduction
@@ -411,23 +410,27 @@ As per [Irizarry]:
 
 > "Regularization permits us to penalize large estimates that are formed using small sample sizes...Specifically, instead of minimizing the least squares equation, we minimize an equation that adds a penalty."
 
-This penalty looks like so:
+Applying their insight to our model yields the following penalized least squares formula:
 $$
-\sum_{u,i} \left(y_{u,i} - \mu - b_i(t) - b_u \right)^2 + 
-\lambda \left(\sum_{i} b_i(t)^2 + \sum_{u} b_u^2\right)
-$$
-
-Additionally, it can be shown that the values for $b_i(t)$ and $b_u$ that minimize the above equation are:
-
-$$
-\hat{b}_i(t,\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
-$$
-and
-$$
-\hat{b}_u(\lambda) = \frac{1}{\lambda + n_u} \sum_{i=1}^{n_u} \left(Y_{u,i} - \hat{\mu} - \hat{b_i(t)}\right)
+\sum_{u,i} \left(y_{u,i} - \mu - b_i - b_{i,Bin(t)} - b_u \right)^2 + 
+\lambda \left(\sum_{i} b_i^2 + \sum_{i} b_{i,Bin(t)}^2 + \sum_{u} b_u^2\right)
 $$
 
-The penalty $\lambda$ thus becomes a tuning parameter:
+It can be shown that the values for $b_i$, $b_{i,Bin(t)}$, and $b_u$ that minimize the above equation are:
+
+\begin{center}
+\begin{tabular}{ c c c }
+
+$\hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)$
+&
+$\hat{b}_{i,Bin(t)}(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu} - \hat{b_i}\right)$
+&
+$\hat{b}_u(\lambda) = \frac{1}{\lambda + n_u} \sum_{i=1}^{n_u} \left(Y_{u,i} - \hat{\mu} - \hat{b_i} - \hat{b_{i,Bin(t)}}\right)$
+
+\end{tabular}
+\end{center}
+
+Below we translate the equations into code. Note that the penalty $\lambda$ becomes a tuning parameter:
 
 ```{r}
 lambdas <- seq(6, 8, 0.25)
@@ -558,7 +561,7 @@ The calculation of the tuning parameters are the most time-consuming parts of ou
 
 In this work, we have built a collaborative filtering system for the prediction of user ratings. Although we validate our system using a movie ratings data set, we note that the model could be applied to other rated items, such as books. We showed the derivation of all the terms in our model, and we used a visual running example to get a sense of the effect of newly added terms. Our model was fit with a technique that approximates the least squares method. We reached a RMSE of `r rmse_validation`, which surpasses our target of `RMSE < 0.86490`.
 
-The RMSE achieved is typical of models that use similar techniques as ours [Irizarry, Koren]. However, a divergence of ~0.86 stars may be limiting in practice. As per [Koren], we could explore other effects that could yield extra RMSE gains, such as evaluating whether there is a temporal effect on the user behavior, and also explore whether there are item to item and user to user effects. Additionally, we could add a term that utilizes singular value decomposition (SVD) to surface effects that are harder to explain. These techniques have been shown to significantly increase accuracy, but they also add to the runtime costs of the model, especially in the case of SVD. These conflicting goals would need to be taken into consideration once a production level solution is needed.
+The RMSE achieved is typical of models that use similar techniques as ours [Irizarry, Koren]. However, a divergence of ~0.86 stars may be limiting in practice. As per [Koren], we could explore other effects that could yield extra RMSE gains, such as evaluating whether there is a temporal effect on the user behavior, and also explore whether there are item to item and user to user effects. Additionally, we could add a factorization term that uses a technique such as singular value decomposition (SVD) to surface effects that are harder to explain. These techniques have been shown to significantly increase accuracy [Koren], but they also add to the runtime costs of the model, especially in the case of SVD. These conflicting goals would need to be taken into consideration once a production level solution is needed.
 
 ## Citations
 
