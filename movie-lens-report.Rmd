@@ -1,5 +1,5 @@
 ---
-title: "A prediction model for the MovieLens data set."
+title: "A Prediction Model for the MovieLens Data Set."
 author: "Xabriel J Collazo Mojica"
 date: "1/13/2022"
 output:
@@ -67,8 +67,6 @@ load("~/Dropbox/Personal/Hobbies/Programming/R/movie-lens/Pristine edx and valid
 
 ## Introduction
 
-(an **introduction/overview/executive summary** section that describes the dataset and summarizes the goal of the project and key steps that were performed)
-
 Collaborative filtering systems, a type of recommendation systems, allow users to leverage work made by other users. One common application is the recommendation of movies. Users input ratings of movies they have seen, typically using a 5-star scale, and the system then predicts how the user would rate other movies based on ratings previously made.
 
 The GroupLens Research Group at the University of Minnesota publishes multiple versions of *MovieLens*, a data set of movie ratings, so that other interested parties can analyze and learn from it. In this work, we utilize a version of their dataset that includes 10 million ratings selected randomly from their complete dataset [MovieLens].
@@ -107,19 +105,17 @@ $Y_{u,i}$: the predicted ratings for all movie and user pairs.
 
 $\mu$: the average rating of all movies in the train set.
 
-$b_i(t)$: term that accounts for the "effect" (or "bias") allocated to the rated item. We notice that our data also has a temporal component, thus we account for this as well.
+$b_i(t)$: term that accounts for the "effect" (or "bias") allocated to the rated item. We notice that our data also has a temporal component, thus we make this term be a function of time.
 
 $b_u$: term that accounts for the effect allocated to the user.
 
-$\varepsilon_{u,i}$ is the error for each movie and user pair when comparing to the actual ratings.
+$\varepsilon_{u,i}$ the error for each movie and user pair when comparing to the actual ratings.
 
 We try to learn each of the effects above by applying the least squares method [LeastSquares], that is, as we add more terms to the model, we try to minimize $\varepsilon_{u,i}$. As a final modeling step, we also apply regularization, to control the effect of movies that skew the results too much with too few ratings.
 
 The goal of the project is to find a model and parameters that minimize the root mean square error $RMSE=sqrt(mean(Y_{u.i} - \hat Y_{u,i})^2)$. We intend to build a model that surpasses `RMSE < 0.86490`. We find that we reach this threshold by implementing the model above, without the need of more elaborate techniques.
 
 ## Methodology and Implementation
-
-(a **methods/analysis** section that explains the process and techniques used, including data cleaning, data exploration and visualization, insights gained, and your modeling approach)
 
 ```{r include=FALSE}
 # First, divide the dataset into training and test sets
@@ -142,9 +138,9 @@ test_set <- test_set %>%
 
 ### Understanding the model
 
-There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry]. We want to find a model for predicting a user $u$ rating of item $i$ given other users ratings, as well as current users ratings of other items. This is typically modeled as the sum of multiple effects given by different features of the dataset. That is, we explore the data set to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with a visualization.
+There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry], and we apply these insigths below. We want to find a model for predicting a user $u$ rating of item $i$ given other users ratings, as well as current users ratings of other items. This is typically modeled as the sum of multiple effects given by different features of the dataset. That is, we explore the data set to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with a visualization.
 
-Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of all the ratings, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon_{u,i}$ is the blue vertical line between mu and the data points. Notice that all the predictions lay in the mean; this model so far is not too useful, but a good starting point. We now want to continue making $\varepsilon_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
+Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of all the ratings, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon_{u,i}$ is the blue vertical line between $\mu$ and the data points. Notice that all the predictions lay in the mean; this model so far is not too useful, but a good starting point. We now want to continue making $\varepsilon_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
 
 ```{r}
 mu <- mean(train_set$rating)
@@ -428,7 +424,7 @@ $$
 $$
 and
 $$
-\hat{b}_u(\lambda) = \frac{1}{\lambda + n_u} \sum_{i=1}^{n_u} \left(Y_{u,i} - \hat{\mu}\right)
+\hat{b}_u(\lambda) = \frac{1}{\lambda + n_u} \sum_{i=1}^{n_u} \left(Y_{u,i} - \hat{\mu} - \hat{b_i(t)}\right)
 $$
 
 The penalty $\lambda$ thus becomes a tuning parameter:
@@ -483,7 +479,7 @@ print(paste(
 
 ## Results
 
-We iteratively improved our model as seen on our test set RMSE results:
+We have iteratively improved our model as seen on our test set RMSE results:
 
 ```{r echo=FALSE}
 
@@ -518,7 +514,7 @@ data.frame(
 )
 ```
 
-We notice that we gain the most from the movie effect, as well as the user effect. The temporal movie effect and regularization gives us marginal benefits.
+We notice that we gain the most from the movie effect, as well as the user effect. The temporal movie effect and regularization gives us marginal benefits, but still help us reach our target RMSE.
 
 We can now do a final evaluation with the validation set:
 
@@ -542,6 +538,7 @@ user_effect <- train_set %>%
   group_by(userId) %>%
   summarise(b_u = sum(rating - mu - b_i - coalesce(b_i_t, 0)) / (n() + best_lambda))
 
+
 results_on_validation <-
   validation %>%
   mutate(bin = ceiling((timestamp - min_timestamp) / bin_size)) %>%
@@ -555,11 +552,13 @@ rmse_validation = RMSE(validation$rating, results_on_validation$model)
 print(paste("RMSE of final model on validation set: ", rmse_validation))
 ```
 
-(a **results** section that presents the modeling results and discusses the model performance)
+The calculation of the tuning parameters are the most time consuming parts of our solution. Of interest of practicality, the model, including the tuning and the fitting, can be built offline, meaning that a user of the system does not need to wait on it.
 
 ## Conclusion
 
-(a **conclusion** section that gives a brief summary of the report, its limitations and future work)
+In this work, we have built a collaborative filtering system for the prediction of user ratings. Although we validate our system using a movie ratings data set, we note that the model could be applied to other rated items, such as books. We showed the derivation of all the terms in our model, and we used a visual running example to get a sense of the effect of newly added terms. Our model was fit with a technique that approximates the least squares method. We reached a RMSE of `r rmse_validation`, which surpasses our target of `RMSE < 0.86490`.
+
+The RMSE achieved is typical of models that use similar techniques as ours [Irizarry, Koren]. However, a divergence of ~0.86 stars may be limiting in practice. As per [Koren], we could explore other effects that could yield extra RMSE gains, such as evaluating whether there is a temporal effect on the user behavior, and also explore whether there are item to item, and user to user effects. Additionally, we could add a term that utilizes singular value decompostion (SVD) to surface effects that are harder to explain. These techniques have been shown to significantly increase accuracy, but they also add to the runtime costs of the model, especially in the case of SVD. These conflicting goals would need to be taken into consideration whether a production level solution is needed.
 
 ## Citations
 
