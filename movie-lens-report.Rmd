@@ -67,9 +67,9 @@ load("~/Dropbox/Personal/Hobbies/Programming/R/movie-lens/Pristine edx and valid
 
 ## Introduction
 
-Collaborative filtering systems, a type of recommendation systems, allow users to leverage work made by other users. One common application is the recommendation of movies. Users input ratings of movies they have seen, typically using a 5-star scale, and the system then predicts how the user would rate other movies based on ratings previously made.
+Collaborative filtering, a type of recommendation system, allows users to leverage work made by other users. One common application is the recommendation of movies. Users rate movies they have seen, typically using a 5-star scale, and the system then predicts how the users would rate other movies based on ratings previously made.
 
-The GroupLens Research Group at the University of Minnesota publishes multiple versions of *MovieLens*, a data set of movie ratings, so that other interested parties can analyze and learn from it. In this work, we utilize a version of their dataset that includes 10 million ratings selected randomly from their complete dataset [MovieLens].
+The GroupLens Research Group at the University of Minnesota publishes *MovieLens*, a data set of movie ratings, enabling other interested parties to analyze and learn from the data. In this work, we utilize a version of their data set that includes 10 million ratings selected randomly from their complete data set [MovieLens].
 
 The data set is composed of two files. The first file, `movies.dat`, contains information about the movies themselves. Its format is as follows:
 
@@ -80,7 +80,7 @@ The data set is composed of two files. The first file, `movies.dat`, contains in
     2::Jumanji (1995)::Adventure|Children|Fantasy
     3::Grumpier Old Men (1995)::Comedy|Romance
 
-Notice that this file is delimited by a double colon (`::`), and it includes a movie identifier, the movie name, and a set of genres, themselves separated by pipes (`|`). The second file, `ratings.dat`, contains information about the ratings. Its format is as follows:
+Notice that this file is delimited by a double colon (`::`), and it includes a movie identifier, the movie name, and a set of genres, themselves separated by pipes (`|`). The second file, `ratings.dat`, contains information about user ratings. Its format is as follows:
 
     UserID::MovieID::Rating::Timestamp
 
@@ -89,11 +89,11 @@ Notice that this file is delimited by a double colon (`::`), and it includes a m
     1::185::5::838983525
     1::231::5::838983392
 
-This file is delimited in the same format, and includes a user identifier, a movie identifier that we can match with the previous file, an integer rating from 1 to 5, and timestamps that represent seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970.
+This file is delimited in the same format, and includes a user identifier, a movie identifier that we can match with the previous file, an integer rating from 1 to 5, and timestamps that represent the time of the rating in seconds since midnight Coordinated Universal Time (UTC) of January 1, 1970.
 
 We use common data import and wrangling techniques to convert these two files into a single object that is more amenable to our purposes. We also divide the data randomly into three sets: 10% is a validation set, which we only utilize for final evaluation of the solution. 72% is a train set, utilized to build our model, and the remaining 18% of the data is used as a test set to continually asses our progress.
 
-We model the problem as a sum of multiple effects given by different features of the dataset. Later in this report we explain in detail our model, but for now we present its final form:
+We model the problem as a sum of multiple effects given by different features of the data set. Later in this report we explain in detail our model, but for now we present its final form:
 
 $$
 Y_{u,i} = \mu + b_i(t) + b_u + \varepsilon_{u,i}
@@ -105,7 +105,7 @@ $Y_{u,i}$: the predicted ratings for all movie and user pairs.
 
 $\mu$: the average rating of all movies in the train set.
 
-$b_i(t)$: term that accounts for the "effect" (or "bias") allocated to the rated item. We notice that our data also has a temporal component, thus we make this term be a function of time.
+$b_i(t)$: term that accounts for the "effect" (or "bias") allocated to the rated item. We notice that our data also has a temporal component, thus we make this term a function of time.
 
 $b_u$: term that accounts for the effect allocated to the user.
 
@@ -118,7 +118,7 @@ The goal of the project is to find a model and parameters that minimize the root
 ## Methodology and Implementation
 
 ```{r include=FALSE}
-# First, divide the dataset into training and test sets
+# First, divide the data set into training and test sets
 set.seed(1, sample.kind = "Rounding")
 test_index <-
   createDataPartition(
@@ -138,9 +138,9 @@ test_set <- test_set %>%
 
 ### Understanding the model
 
-There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry], and we apply these insigths below. We want to find a model for predicting a user $u$ rating of item $i$ given other users ratings, as well as current users ratings of other items. This is typically modeled as the sum of multiple effects given by different features of the dataset. That is, we explore the data set to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with a visualization.
+There has been considerable study of collaborative filtering in existing literature [Koren, Irizarry], and we apply these insights below. We want to find a model for predicting a user $u$ rating of an item $i$ given other users ratings, as well as current users ratings of other items. This is typically modeled as the sum of multiple effects given by different features of the data set. That is, we explore the data set to try and find the main properties that seem to explain why a rating goes up or down. This is easier to understand with a visualization.
 
-Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of all the ratings, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon_{u,i}$ is the blue vertical line between $\mu$ and the data points. Notice that all the predictions lay in the mean; this model so far is not too useful, but a good starting point. We now want to continue making $\varepsilon_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
+Let's take 5 random data points from movies with a significant amount of ratings and use them as a running example. Our first observation is that by taking the mean $\mu$ of all the ratings, we can start modeling our problem as $Y_{u,i} = \mu + \varepsilon_{u,i}$ where our prediction is just $\mu$. Below we represent the mean with a black horizontal line, actual ratings in green, predicted ratings in red. $\varepsilon_{u,i}$ is the blue vertical line between $\mu$ and the data points. Notice that all the predictions lay in the mean; this model is not too useful, but a good starting point. We now want to continue making $\varepsilon_{u,i}$ smaller, by adding more effects in the equation that try to explain why a particular rating deviates from the mean.
 
 ```{r}
 mu <- mean(train_set$rating)
@@ -387,7 +387,7 @@ sample %>%
 
 ### Regularization
 
-The final improvement we do in this work is the application of regularization. We want to control the effect of ratings where we have low confidence, that is, movies that were rated by few users, and users that made few ratings, should weight less. And we do have a significant amount of movies and users in that category:
+The final improvement we do in this work is the application of regularization. We want to control the effect of ratings where we have low confidence. Movies that were rated by few users and users that made few ratings should weigh less. And we do have a significant amount of movies and users in that category:
 
 ```{r}
 # movies with few ratings
@@ -552,13 +552,13 @@ rmse_validation = RMSE(validation$rating, results_on_validation$model)
 print(paste("RMSE of final model on validation set: ", rmse_validation))
 ```
 
-The calculation of the tuning parameters are the most time consuming parts of our solution. Of interest of practicality, the model, including the tuning and the fitting, can be built offline, meaning that a user of the system does not need to wait on it.
+The calculation of the tuning parameters are the most time-consuming parts of our solution. Of interest of practicality, the model, including the tuning and the fitting, can be built offline, meaning that a user of the system does not need to wait on it.
 
 ## Conclusion
 
 In this work, we have built a collaborative filtering system for the prediction of user ratings. Although we validate our system using a movie ratings data set, we note that the model could be applied to other rated items, such as books. We showed the derivation of all the terms in our model, and we used a visual running example to get a sense of the effect of newly added terms. Our model was fit with a technique that approximates the least squares method. We reached a RMSE of `r rmse_validation`, which surpasses our target of `RMSE < 0.86490`.
 
-The RMSE achieved is typical of models that use similar techniques as ours [Irizarry, Koren]. However, a divergence of ~0.86 stars may be limiting in practice. As per [Koren], we could explore other effects that could yield extra RMSE gains, such as evaluating whether there is a temporal effect on the user behavior, and also explore whether there are item to item, and user to user effects. Additionally, we could add a term that utilizes singular value decompostion (SVD) to surface effects that are harder to explain. These techniques have been shown to significantly increase accuracy, but they also add to the runtime costs of the model, especially in the case of SVD. These conflicting goals would need to be taken into consideration whether a production level solution is needed.
+The RMSE achieved is typical of models that use similar techniques as ours [Irizarry, Koren]. However, a divergence of ~0.86 stars may be limiting in practice. As per [Koren], we could explore other effects that could yield extra RMSE gains, such as evaluating whether there is a temporal effect on the user behavior, and also explore whether there are item to item and user to user effects. Additionally, we could add a term that utilizes singular value decomposition (SVD) to surface effects that are harder to explain. These techniques have been shown to significantly increase accuracy, but they also add to the runtime costs of the model, especially in the case of SVD. These conflicting goals would need to be taken into consideration once a production level solution is needed.
 
 ## Citations
 
@@ -568,4 +568,4 @@ The RMSE achieved is typical of models that use similar techniques as ours [Iriz
 
 [LeastSquares] : Wikipedia contributors. Least squares. Wikipedia, The Free Encyclopedia. January 10, 2022, 14:16 UTC. Available at: <https://en.wikipedia.org/w/index.php?title=Least_squares&oldid=1064847980>. Accessed January 25, 2022.
 
-[MovieLens] : F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM Transactions on Interactive Intelligent Systems (TiiS) 5, 4, Article 19 (December 2015), 19 pages. DOI=<http://dx.doi.org/10.1145/2827872>. Dataset availabe for free download at: <http://files.grouplens.org/datasets/movielens/ml-10m-README.html>.
+[MovieLens] : F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM Transactions on Interactive Intelligent Systems (TiiS) 5, 4, Article 19 (December 2015), 19 pages. DOI=<http://dx.doi.org/10.1145/2827872>. Data set availabe for free download at: <http://files.grouplens.org/datasets/movielens/ml-10m-README.html>.
